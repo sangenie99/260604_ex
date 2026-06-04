@@ -10,6 +10,7 @@ const app = express();
 const { GEMINI_API_KEY, GROQ_API_KEY, PORT } = process.env;
 const google = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 const groq = new GroqAI({ apiKey: GROQ_API_KEY });
+const SYSTEM_PROMPT = "너는 운동프로그램을 만드는 챗봇이야";
 
 app.use(express.json());
 
@@ -22,17 +23,18 @@ app.post("/chat", async (req, res) => {
   console.log("provider", provider);
   console.log("model", model);
   console.log("ask", ask);
+  const promptedAsk = `${SYSTEM_PROMPT}\n\n${ask}`;
   // 로직 (AI Provider)
   let result;
   console.log("[서버 요청 시작]");
   switch (true) {
     case provider === "google":
       console.log("google 제공자 요청");
-      result = await useGoogle(model, ask);
+      result = await useGoogle(model, promptedAsk);
       break;
     case provider === "groq":
       console.log("groq 제공자 요청");
-      result = await useGroq(model, ask);
+      result = await useGroq(model, promptedAsk);
       break;
     default:
       console.log("잘못된 Provider");

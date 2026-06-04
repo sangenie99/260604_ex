@@ -3,54 +3,155 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI 챗봇</title>
-    <style>
-      #chatForm {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        align-items: start;
-      }
-    </style>
+    <title>Workout Program</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
-    <form id="chatForm">
-      <select name="provider">
-        <option>google</option>
-        <option>groq</option>
-      </select>
-      <select name="model">
-        <option>gemma-4-26b-a4b-it</option>
-        <option>openai/gpt-oss-120b</option>
-      </select>
-      <input name="ask" />
-      <button>물어보기</button>
-    </form>
-    <section id="chatContainer"></section>
+    <main class="shell">
+      <section class="hero" aria-label="서비스 소개">
+        <div class="hero-card">
+          <span class="eyebrow">Workout Buddy</span>
+          <h1>운동프로그램을 만들어주는<br />친근한 코치</h1>
+          <p>
+            운동 목표에 맞는 루틴을 편하게 물어보세요. 질문을 보내면 아래에
+            카드처럼 쌓여서, 내가 만든 운동 계획을 한눈에 볼 수 있습니다.
+          </p>
+        </div>
+        <aside class="side-card">
+          <img
+            class="preview-image"
+            src="/workout-preview.svg"
+            alt="운동 루틴 미리보기 그림"
+          />
+          <h2>오늘의 메모</h2>
+          <ul>
+            <li>원하는 부위와 운동 횟수를 같이 적어보세요.</li>
+            <li>질문은 짧게 써도 자연스럽게 운동 계획으로 바뀝니다.</li>
+            <li>모바일에서는 입력이 편하게 세로로 정리됩니다.</li>
+          </ul>
+        </aside>
+      </section>
+
+      <form id="chatForm">
+        <div class="field">
+          <label for="provider">엔진</label>
+          <select id="provider" name="provider">
+            <option>google</option>
+            <option>groq</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="model">모델</label>
+          <select id="model" name="model">
+            <option>gemma-4-26b-a4b-it</option>
+            <option>openai/gpt-oss-120b</option>
+          </select>
+        </div>
+        <div class="field ask-field">
+          <label for="ask">질문</label>
+          <input
+            id="ask"
+            name="ask"
+            placeholder="예: 하체 위주로 주 3회 운동 프로그램 짜줘"
+          />
+        </div>
+        <div class="form-actions">
+          <button type="submit">프로그램 부탁해</button>
+          <button type="button" id="saveButton">오늘 내용 저장</button>
+        </div>
+      </form>
+
+      <section id="chatContainer" aria-live="polite"></section>
+    </main>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script>
       const chatForm = document.querySelector("#chatForm");
       const chatContainer = document.querySelector("#chatContainer");
+      const saveButton = document.querySelector("#saveButton");
+      const history = [];
+
+      function escapeText(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;");
+      }
+
+      function getTodayStamp() {
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, "0");
+        const dd = String(now.getDate()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd}`;
+      }
+
+      function downloadTextFile(content, fileName) {
+        const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = fileName;
+        link.click();
+        URL.revokeObjectURL(url);
+      }
+
+      function buildTodayText() {
+        const lines = [`Workout Program`, `날짜: ${getTodayStamp()}`, ``];
+
+        if (history.length === 0) {
+          lines.push("저장된 대화가 없습니다.");
+          return lines.join("\n");
+        }
+
+        history.forEach((item, index) => {
+          lines.push(`[${index + 1}] 질문`);
+          lines.push(item.ask);
+          lines.push(`답변`);
+          lines.push(item.result);
+          lines.push("");
+        });
+
+        return lines.join("\n");
+      }
+
       chatForm.addEventListener("submit", async (event) => {
         event.preventDefault();
         const formData = new FormData(event.target);
         console.log("formData", ...formData);
         console.log("[클라이언트 요청 시작]");
-        const response = await axios.post(
-          "/chat",
-          Object.fromEntries(formData),
-        );
+        const response = await axios.post("/chat", {
+          ...Object.fromEntries(formData),
+        });
         console.log("[클라이언트 요청 완료]");
         // console.log("response", response.data);
         const { result } = response.data;
-        const p = document.createElement("p");
-        p.innerHTML = `
-            <div style ="border: 1px solid black; padding: 10px;">
-                <strong>질문</strong> : ${formData.get("ask")}<br>
-                <strong>대답</strong> : ${result}
-            <div>
+        const ask = formData.get("ask");
+        history.unshift({ ask, result });
+        const article = document.createElement("article");
+        const safeAnswerHtml = DOMPurify.sanitize(marked.parse(result));
+
+        article.innerHTML = `
+        <span class="chat-label">운동 메모</span>
+
+        <div class="chat-question">
+            <strong>질문</strong>
+            <p>${escapeText(ask)}</p>
+        </div>
+
+        <div class="chat-answer">
+            <strong>대답</strong>
+            <div class="answer-text">${safeAnswerHtml}</div>
+        </div>
         `;
-        chatContainer.append(p);
+        chatContainer.prepend(article);
+      });
+
+      saveButton.addEventListener("click", () => {
+        const fileName = `workout-program-${getTodayStamp()}.txt`;
+        downloadTextFile(buildTodayText(), fileName);
       });
     </script>
   </body>
