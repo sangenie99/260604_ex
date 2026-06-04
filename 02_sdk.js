@@ -39,7 +39,7 @@ const PORT = 3001; // node 3xxx. 5xxx (python). java 8xxx
 const genAI = new GoogleGenAI(
     { apiKey : process.env.GEMINI_API_KEY }
 );
-const groq = new Groq( apiKey : process.env.GROQ_API_KEY)
+const groq = new Groq( {apiKey : process.env.GROQ_API_KEY})
 
 
 app.get("/", async (req, res) => {
@@ -57,14 +57,15 @@ app.get("/", async (req, res) => {
 
 app.get("/groq", async (req, res) => {
     const modelName = 'openai/gpt-oss-120b'
-    const result = await genAI.models.generateContent({
+    const result = await groq.chat.completions.create({
+        messages: [{role: "user", content: "점심메뉴 추천해줘"}],
         model: modelName,
-        contents: "점심 메뉴 추천해줘",
-    })
+    });
+    console.log(JSON.stringify(result));
     res.json({
-        asnwer: result.text,
-    })
-})
+        answer: result.choices[0].message.content,
+    });
+});
 
 // POSTMAN -> local 
 app.listen(PORT, () => {
